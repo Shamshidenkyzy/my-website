@@ -1,17 +1,94 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Мой первый сайт</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <h1>Добро пожаловать на мой сайт!</h1>
-    <p>Этот сайт создан с помощью GitHub Pages.</p>
+<!doctype html>
+map.fitBounds(hazardLayer.getBounds(),{maxZoom:13});
+}).catch(err=>{
+console.warn(err);
+// Для демонстрации добавим точку, если загрузка провалилась
+const demo = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"title":"Демо: оползень","type":"landslide","description":"Пример объекта"},"geometry":{"type":"Point","coordinates":[76.95,43.25]}}]};
+hazardLayer.addData(demo);
+});
 
-    <button onclick="sayHello()">Нажми меня</button>
 
-    <script src="script.js"></script>
+// Стилизация в зависимости от типа
+function styleForFeature(f){
+const t = (f.properties && f.properties.type) || 'unknown';
+const common = {radius:8,weight:1,opacity:1,fillOpacity:0.9};
+if(t==='landslide') return Object.assign(common,{color:'#b91c1c',fillColor:'#ef4444'});
+if(t==='flood') return Object.assign(common,{color:'#92400e',fillColor:'#f59e0b'});
+if(t==='quake') return Object.assign(common,{color:'#1e3a8a',fillColor:'#3b82f6'});
+return Object.assign(common,{color:'#334155',fillColor:'#64748b'});
+}
+
+
+// Поиск по Nominatim (OpenStreetMap)
+document.getElementById('btnSearch').addEventListener('click',doSearch);
+document.getElementById('q').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); doSearch(); }});
+
+
+function doSearch(){
+const q = document.getElementById('q').value.trim();
+if(!q) return;
+// Если это координаты lat,lon
+const coordMatch = q.match(/^\s*([-+]?\d{1,2}\.\d+)\s*,\s*([-+]?\d{1,3}\.\d+)\s*$/);
+if(coordMatch){
+const lat = parseFloat(coordMatch[1]), lon = parseFloat(coordMatch[2]);
+map.setView([lat,lon],14);
+L.marker([lat,lon]).addTo(map).bindPopup('Координаты: '+lat+', '+lon).openPopup();
+return;
+}
+// Иначе используем Nominatim
+const url = 'https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(q);
+fetch(url).then(r=>r.json()).then(results=>{
+if(!results.length){ alert('Ничего не найдено'); return; }
+const first = results[0];
+const lat = parseFloat(first.lat), lon = parseFloat(first.lon);
+map.setView([lat,lon],14);
+L.marker([lat,lon]).addTo(map).bindPopup(escapeHtml(first.display_name)).openPopup();
+}).catch(err=>{ console.warn(err); alert('Ошибка поиска'); });
+}
+
+
+// Фильтр по select
+document.getElementById('filter').addEventListener('change', ()=>{
+const val = document.getElementById('filter').value;
+hazardLayer.clearLayers();
+fetch(URL_GEOJSON).then(r=>r.json()).then(data=>{
+const filtered = {type:'FeatureCollection',features: data.features.filter(f=>{
+if(val==='all') return true;
+return f.properties && f.properties.type===val;
+})};
+hazardLayer.addData(filtered);
+}).catch(()=>{});
+});
+
+
+// Обработка формы
+document.getElementById('contact').addEventListener('submit', async (e)=>{
+e.preventDefault();
+const name = document.getElementById('name').value.trim();
+const email = document.getElementById('email').value.trim();
+const message = document.getElementById('message').value.trim();
+const status = document.getElementById('formStatus');
+if(!name||!email||!message){ status.textContent = 'Пожалуйста, заполните все поля.'; return; }
+// Простейшая валидация email
+if(!/^\S+@\S+\.\S+$/.test(email)){ status.textContent = 'Некорректный email.'; return; }
+
+
+// Отправка — тут укажите свой endpoint или используйте формы Netlify / Formspree
+try{
+// Пока сделаем заглушку — имитация успешной отправки
+await new Promise(r=>setTimeout(r,600));
+status.textContent = 'Спасибо! Ваше сообщение отправлено.';
+e.target.reset();
+}catch(err){
+status.textContent = 'Ошибка отправки. Попробуйте позже.';
+}
+});
+
+
+// Безопасный вывод HTML в попапах
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+
+</script>
 </body>
 </html>
